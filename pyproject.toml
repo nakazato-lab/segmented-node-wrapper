@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "segmented-node-wrapper"
+version = "0.1.0"
+description = "A lightweight wrapper for segmented NDN data transfer using python-ndn's SegmentedNode."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Nakazato Lab"},
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+  "python-ndn>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/nakazato-lab/segmented-node-wrapper"
+Repository = "https://github.com/nakazato-lab/segmented-node-wrapper"
+
+[tool.setuptools]
+py-modules = ["segmented_node_wrapper"]
