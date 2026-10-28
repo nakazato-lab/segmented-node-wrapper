@@ -1,6 +1,6 @@
 # segmented-node-wrapper
 
-A lightweight wrapper for segmented NDN data transfer using python-ndn's `SegmentedNode`.
+A lightweight wrapper for segmented NDN data transfer using python-ndn's [`SegmentedNode`](https://python-ndn.readthedocs.io/en/v0.5.2/src/schema/schema_tree.html#ndn.schema.schema_tree).
 
 It publishes a byte object as multiple Data packets and fetches it back as one `bytes` value. A serving instance registers its prefix; a fetch-only instance does not register the remote producer's prefix.
 
@@ -12,7 +12,7 @@ pip install "git+https://github.com/nakazato-lab/segmented-node-wrapper.git"
 
 ## Usage
 
-The Manager publishes code and sends the returned name (`code_ref`) in a small control Interest.
+The Manager publishes code and sends the returned name (`published_name`) in a small control Interest.
 
 ```python
 import json
@@ -28,12 +28,12 @@ async def main():
     await func.start()
     function_name = "long-func"
     source_code = Path("long-func.py").read_bytes()
-    code_ref = await func.publish(function_name, source_code)
+    published_name = await func.publish(function_name, source_code)
     request = {
         "type": "CREATE",
         "name": function_name,
         "runtime": "python",
-        "code_ref": code_ref,
+        "code_ref": published_name,
     }
     await app.express_interest(
         "/node1/seed",
@@ -56,18 +56,30 @@ is sent. For example, the published object may be available as:
 ```
 
 The CREATE Interest sent to `/node1/seed` contains only the small `code_ref`
-value, `/manager/functions/long-func`.
+field, whose `published_name` value is `/manager/functions/long-func`.
 
-The Seed fetches and reassembles the code with the name received in `code_ref`.
+The Seed fetches and reassembles the code with the received `published_name`.
 
 ```python
+import asyncio
+import json
+
+from segmented_node_wrapper import SegmentedNodeWrapper
+
 func = SegmentedNodeWrapper(app, "/manager/functions", serve=False)
 
 async def after_start():
     await func.start()
 
-async def handle_create(code_ref: str):
-    code = await func.fetch(code_ref)
+@app.route("/node1/seed")
+def on_interest(_name, _param, app_param):
+    if app_param is None:
+        return
+    request = json.loads(app_param)
+    asyncio.create_task(handle_create(request["code_ref"]))
+
+async def handle_create(published_name: str):
+    source_code = await func.fetch(published_name)
 
 app.run_forever(after_start=after_start())
 ```
