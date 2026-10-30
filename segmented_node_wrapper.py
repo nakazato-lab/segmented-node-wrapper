@@ -85,6 +85,7 @@ class SegmentedNodeWrapper:
         node = self._nodes.get(name)
         if node is None:
             node = self._new_node()
+            node.prefix = published_name
             node.set_policy(policy.Cache, MemoryCachePolicy(MemoryCache()))
             if not await node.attach(self._app, published_name):
                 raise RuntimeError("NFD rejected prefix registration")
