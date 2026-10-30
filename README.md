@@ -4,6 +4,27 @@ A lightweight wrapper for segmented NDN data transfer using python-ndn's [`Segme
 
 It publishes a byte object as multiple Data packets and fetches it back as one `bytes` value. A serving instance registers its prefix; a fetch-only instance does not register the remote producer's prefix.
 
+## How `SegmentedNode` is used
+
+`SegmentedNode` is a python-ndn schema node for an object whose Data is split
+into numbered segments and reassembled on retrieval. A serving wrapper creates
+and retains one `SegmentedNode` for each published name. For example, publishing
+`long-func` under `/manager/functions` creates a node rooted at
+`/manager/functions/long-func`.
+
+```text
+/manager/functions/long-func       SegmentedNode
+/manager/functions/long-func/seg=0 Data
+/manager/functions/long-func/seg=1 Data
+```
+
+Internally, publishing uses `node.match(published_name).provide(data, ...)`.
+`match()` creates the context for that exact name, including its prefix and
+policies. `provide()` then uses that context to segment the bytes, cache the
+resulting Data packets, and serve them when Interests arrive. Separate nodes
+ensure that publishing one function does not change another function's prefix,
+registration, or cached data.
+
 ## Install
 
 ```bash
