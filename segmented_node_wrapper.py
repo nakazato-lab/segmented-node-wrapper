@@ -5,7 +5,6 @@ from typing import Any
 
 from ndn.encoding import Name
 from ndn.schema import policy
-from ndn.schema.schema_tree import Node
 from ndn.schema.simple_cache import MemoryCache, MemoryCachePolicy
 from ndn.schema.simple_node import SegmentedNode
 
@@ -26,16 +25,7 @@ class SegmentedNodeWrapper:
         if not self._prefix:
             raise ValueError("prefix must not be the root name")
         self._serve = serve
-        self._nodes = {}
-
-        self._root = Node()
-        if serve:
-            self._root.set_policy(policy.Cache, MemoryCachePolicy(MemoryCache()))
-
-    async def start(self) -> None:
-        self._root.prefix = self._prefix
-        if not await self._root.attach(self._app, self._prefix):
-            raise RuntimeError("NFD rejected prefix registration")
+        self._nodes: dict[str, SegmentedNode] = {}
 
     async def publish(
         self,
@@ -52,8 +42,8 @@ class SegmentedNodeWrapper:
             raise ValueError("content must not be empty")
         func_name = Name.from_str(func_name)
         published_name = self._make_published_name(func_name)
-        self._ensure_node(func_name)
-        await self._root.match(published_name).provide(
+        node = await self._get_or_create_node(published_name)
+        await node.match(published_name).provide(
             data, freshness_period=freshness_period, **kwargs
         )
         return Name.to_str(published_name)
@@ -72,9 +62,11 @@ class SegmentedNodeWrapper:
         **kwargs: Any,
     ) -> tuple[bytes, Mapping[str, Any]]:
         name = Name.from_str(published_name)
-        func_name = self._retrieve_func_name(name)
-        self._ensure_node(func_name)
-        content, metadata = await self._root.match(name).need(**kwargs)
+        self._retrieve_func_name(name)
+        node = self._new_node()
+        node.app = self._app
+        node.prefix = name
+        content, metadata = await node.match(name).need(**kwargs)
         return bytes(content), metadata
 
     def _make_published_name(self, func_name: list[bytes]) -> list[bytes]:
@@ -88,13 +80,22 @@ class SegmentedNodeWrapper:
             raise ValueError("name must be below the prefix")
         return published_name[len(self._prefix):]
 
-    def _ensure_node(self, func_name: list[bytes]) -> None:
-        func_name = Name.to_str(func_name)
-        if func_name not in self._nodes:
-            self._root[func_name] = SegmentedNode(
-                timeout=4000,
-                retry_times=3,
-                segment_size=SEGMENT_SIZE,
-            )
-            self._nodes[func_name] = True
+    async def _get_or_create_node(self, published_name: list[bytes]) -> SegmentedNode:
+        name = Name.to_str(published_name)
+        node = self._nodes.get(name)
+        if node is None:
+            node = self._new_node()
+            node.set_policy(policy.Cache, MemoryCachePolicy(MemoryCache()))
+            if not await node.attach(self._app, published_name):
+                raise RuntimeError("NFD rejected prefix registration")
+            self._nodes[name] = node
+        return node
+
+    @staticmethod
+    def _new_node() -> SegmentedNode:
+        return SegmentedNode(
+            timeout=4000,
+            retry_times=3,
+            segment_size=SEGMENT_SIZE,
+        )
 

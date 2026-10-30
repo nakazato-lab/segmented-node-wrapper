@@ -25,7 +25,6 @@ app = NDNApp()
 func = SegmentedNodeWrapper(app, "/manager/functions", serve=True)
 
 async def main():
-    await func.start()
     function_name = "long-func"
     source_code = Path("long-func.py").read_bytes()
     published_name = await func.publish(function_name, source_code)
@@ -66,11 +65,6 @@ import json
 
 from segmented_node_wrapper import SegmentedNodeWrapper
 
-func = SegmentedNodeWrapper(app, "/manager/functions", serve=False)
-
-async def after_start():
-    await func.start()
-
 @app.route("/node1/seed")
 def on_interest(_name, _param, app_param):
     if app_param is None:
@@ -79,9 +73,10 @@ def on_interest(_name, _param, app_param):
     asyncio.create_task(handle_create(request["code_ref"]))
 
 async def handle_create(published_name: str):
+    func = SegmentedNodeWrapper(app, "/manager/functions", serve=False)
     source_code = await func.fetch(published_name)
 
-app.run_forever(after_start=after_start())
+app.run_forever()
 ```
 
 `fetch()` sends Interests for each segment and returns the reassembled bytes:
