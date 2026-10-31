@@ -2,14 +2,16 @@
 
 A lightweight wrapper for segmented NDN data transfer using python-ndn's [`SegmentedNode`](https://python-ndn.readthedocs.io/en/v0.5.2/src/schema/schema_tree.html#ndn.schema.schema_tree).
 
-It publishes a byte object as multiple Data packets and fetches it back as one `bytes` value. A serving instance registers its prefix; a fetch-only instance does not register the remote producer's prefix.
+It publishes a byte object as multiple Data packets and fetches it back as one `bytes` value. A serving instance registers each published name; a fetch-only instance does not register the remote producer's prefix.
+
+The constructor takes the application and an optional `serve` flag, without a prefix. Pass the complete NDN name to `publish()` or `fetch()`. Callers compose any Router prefix and function name before publishing.
 
 ## How `SegmentedNode` is used
 
 `SegmentedNode` is a python-ndn schema node for an object whose Data is split
 into numbered segments and reassembled on retrieval. A serving wrapper creates
 and retains one `SegmentedNode` for each published name. For example, publishing
-`long-func` under `/manager/functions` creates a node rooted at
+the complete name `/manager/functions/long-func` creates a node rooted at
 `/manager/functions/long-func`.
 
 ```text
@@ -43,12 +45,13 @@ from ndn.app import NDNApp
 from segmented_node_wrapper import SegmentedNodeWrapper
 
 app = NDNApp()
-func = SegmentedNodeWrapper(app, "/manager/functions", serve=True)
+func = SegmentedNodeWrapper(app, serve=True)
 
 async def main():
     function_name = "long-func"
     source_code = Path("long-func.py").read_bytes()
-    published_name = await func.publish(function_name, source_code)
+    published_name = await func.publish(
+        f"/manager/functions/{function_name}", source_code)
     request = {
         "type": "CREATE",
         "name": function_name,
@@ -94,7 +97,7 @@ def on_interest(_name, _param, app_param):
     asyncio.create_task(handle_create(request["code_ref"]))
 
 async def handle_create(published_name: str):
-    func = SegmentedNodeWrapper(app, "/manager/functions", serve=False)
+    func = SegmentedNodeWrapper(app)
     source_code = await func.fetch(published_name)
 
 app.run_forever()
