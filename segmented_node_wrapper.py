@@ -16,20 +16,16 @@ class SegmentedNodeWrapper:
     def __init__(
         self,
         app: Any,
-        prefix: str,
         *,
         serve: bool = False,
     ) -> None:
         self._app = app
-        self._prefix = Name.from_str(prefix)
-        if not self._prefix:
-            raise ValueError("prefix must not be the root name")
         self._serve = serve
         self._nodes: dict[str, SegmentedNode] = {}
 
     async def publish(
         self,
-        func_name: str,
+        published_name: str,
         content: bytes | bytearray | memoryview,
         *,
         freshness_period: int = 0,
@@ -40,8 +36,7 @@ class SegmentedNodeWrapper:
         data = bytes(content)
         if not data:
             raise ValueError("content must not be empty")
-        func_name = Name.from_str(func_name)
-        published_name = self._make_published_name(func_name)
+        published_name = Name.from_str(published_name)
         node = await self._get_or_create_node(published_name)
         await node.match(published_name).provide(
             data, freshness_period=freshness_period, **kwargs
@@ -62,23 +57,11 @@ class SegmentedNodeWrapper:
         **kwargs: Any,
     ) -> tuple[bytes, Mapping[str, Any]]:
         name = Name.from_str(published_name)
-        self._retrieve_func_name(name)
         node = self._new_node()
         node.app = self._app
         node.prefix = name
         content, metadata = await node.match(name).need(**kwargs)
         return bytes(content), metadata
-
-    def _make_published_name(self, func_name: list[bytes]) -> list[bytes]:
-        if not func_name:
-            raise ValueError("name must not be the root name")
-        return self._prefix + func_name
-
-    def _retrieve_func_name(self, published_name: list[bytes]) -> list[bytes]:
-        if (len(published_name) <= len(self._prefix)
-                or published_name[:len(self._prefix)] != self._prefix):
-            raise ValueError("name must be below the prefix")
-        return published_name[len(self._prefix):]
 
     async def _get_or_create_node(self, published_name: list[bytes]) -> SegmentedNode:
         name = Name.to_str(published_name)
